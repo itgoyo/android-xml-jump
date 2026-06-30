@@ -1,0 +1,28 @@
+<idea-plugin>
+    <id>com.itgoyo.android-xml-jump</id>
+    <name>Android XML Jump</name>
+    <vendor email="itgoyo@example.com">itgoyo</vendor>
+
+    <description><![CDATA[
+        Jump from an Android layout XML editor tab to the Java or Kotlin class that references that layout.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.xml</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Android XML Jump" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <action
+            id="AndroidXmlJump.GoToLayoutOwner"
+            class="com.itgoyo.androidxmljump.GoToLayoutOwnerAction"
+            text="Jump to Layout Owner Class"
+            description="Open the Java or Kotlin class that references the current Android layout XML">
+            <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="meta ctrl L"/>
+        </action>
+    </actions>
+</idea-plugin>

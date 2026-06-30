@@ -118,14 +118,39 @@ gradle runIde
 
 To make the plugin searchable inside Android Studio, it must be uploaded to JetBrains Marketplace and pass JetBrains review.
 
-1. Create a JetBrains Marketplace personal access token from your JetBrains Marketplace profile.
-2. Export the token locally:
+For the first release, JetBrains Marketplace requires a manual upload from the Marketplace web UI so you can create the plugin listing and set required metadata such as license, repository URL, vendor information, and plugin category.
+
+1. Build the plugin zip:
+
+   ```bash
+   gradle buildPlugin
+   ```
+
+2. Open JetBrains Marketplace in your browser.
+3. Create a new plugin listing.
+4. Upload:
+
+   ```text
+   build/distributions/android-xml-jump-0.1.0.zip
+   ```
+
+5. Set the repository URL:
+
+   ```text
+   https://github.com/itgoyo/android-xml-jump
+   ```
+
+6. Submit the plugin for JetBrains review.
+
+After the first Marketplace upload exists, later versions can be published from Gradle with a Marketplace token:
+
+1. Export the token locally:
 
    ```bash
    export PUBLISH_TOKEN="YOUR_MARKETPLACE_TOKEN"
    ```
 
-3. Publish the plugin:
+2. Publish the plugin:
 
    ```bash
    gradle publishPlugin

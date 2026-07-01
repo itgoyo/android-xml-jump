@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.itgoyo"
-version = "0.1.2"
+version = "0.1.5"
 
 kotlin {
     jvmToolchain(21)
@@ -44,8 +44,10 @@ intellijPlatform {
 
         changeNotes = """
             <ul>
-              <li>Copy the target class name to the clipboard after jumping.</li>
-              <li>When multiple targets are available, copy the class name on selection.</li>
+              <li>Fix XML caret: navigate via PSI XmlTag (works with Android layout editor).</li>
+              <li>Retry caret placement and scroll-to-center after editor opens asynchronously.</li>
+              <li>Restore caret after switching to Split (Code + Design) view.</li>
+              <li>Improve view-id extraction from binding.guideIV and R.id.xxx.</li>
             </ul>
         """.trimIndent()
     }

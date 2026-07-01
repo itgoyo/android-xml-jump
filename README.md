@@ -86,7 +86,7 @@ This makes it useful for Activity, Fragment, Adapter, custom View, ViewBinding, 
 5. Select:
 
    ```text
-   build/distributions/android-xml-jump-0.1.2.zip
+   build/distributions/android-xml-jump-0.1.5.zip
    ```
 
 6. Restart Android Studio.
@@ -143,7 +143,7 @@ For the first release, JetBrains Marketplace requires a manual upload from the M
 4. Upload:
 
    ```text
-   build/distributions/android-xml-jump-0.1.2.zip
+   build/distributions/android-xml-jump-0.1.5.zip
    ```
 
 5. Set the repository URL:

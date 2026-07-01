@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.itgoyo"
-version = "0.1.0"
+version = "0.1.2"
 
 kotlin {
     jvmToolchain(21)
@@ -44,8 +44,8 @@ intellijPlatform {
 
         changeNotes = """
             <ul>
-              <li>Add editor tab action and keyboard shortcut to jump from Android layout XML files to classes that reference them.</li>
-              <li>Support common Android references including R.layout, @layout, ViewBinding, and DataBinding usage.</li>
+              <li>Copy the target class name to the clipboard after jumping.</li>
+              <li>When multiple targets are available, copy the class name on selection.</li>
             </ul>
         """.trimIndent()
     }

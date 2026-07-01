@@ -1,24 +1,28 @@
 # Android XML Jump
 
-Android XML Jump is an Android Studio plugin that jumps from a layout XML file to the Java or Kotlin class that uses it.
+Android XML Jump is an Android Studio plugin that jumps between Android layout XML files and the Java or Kotlin classes that use them.
 
-When you are previewing or editing files such as `activity_main.xml`, `item_user.xml`, or `fragment_home.xml`, you no longer need to manually search `R.layout.xxx`, ViewBinding classes, or adapter usages across the project. Right-click the XML editor tab, choose **Jump to Layout Owner Class**, and the plugin opens the most likely owner class directly.
+When you are previewing or editing files such as `activity_main.xml`, `item_user.xml`, or `fragment_home.xml`, you no longer need to manually search `R.layout.xxx`, ViewBinding classes, or adapter usages across the project. Right-click the XML editor tab, choose **Jump Between Layout and Owner**, and the plugin opens the most likely owner class directly. If you run the same action from a Java or Kotlin class, it jumps back to the layout XML referenced by that class.
 
 ![Android XML Jump editor tab menu](docs/images/editor-tab-menu.png)
 
 ## Features
 
-- Adds **Jump to Layout Owner Class** to the Android Studio editor tab right-click menu.
+- Adds **Jump Between Layout and Owner** to the Android Studio editor tab right-click menu.
 - Supports the default macOS shortcut: `Command+Ctrl+L`.
 - Lets you customize the shortcut from Android Studio Keymap settings.
 - Works with layout resources under `res/layout*`, including folders such as `layout`, `layout-land`, and `layout-sw600dp`.
+- Supports two-way navigation:
+  - layout XML -> owner Java/Kotlin class
+  - Java/Kotlin class -> referenced layout XML
 - Finds common layout usage styles:
   - `R.layout.activity_main`
   - `@layout/activity_main`
   - `ActivityMainBinding`
   - DataBinding/ViewBinding generated binding names
 - Opens the owner class immediately when there is one clear match.
-- Shows a chooser when multiple classes reference the same XML file.
+- Opens the layout XML immediately when one clear layout reference is found in a class.
+- Shows a chooser when there are multiple possible targets.
 
 ## Usage
 
@@ -26,12 +30,19 @@ When you are previewing or editing files such as `activity_main.xml`, `item_user
 
 1. Open an Android layout XML file, for example `res/layout/activity_main.xml`.
 2. Right-click the XML file tab at the top of the editor.
-3. Click **Jump to Layout Owner Class**.
+3. Click **Jump Between Layout and Owner**.
 4. Android Studio opens the Java or Kotlin class that references the layout.
+
+You can also use the same action from a Java or Kotlin file:
+
+1. Open a class that contains a layout reference such as `R.layout.activity_main` or `ActivityMainBinding`.
+2. Right-click the class file tab at the top of the editor.
+3. Click **Jump Between Layout and Owner**.
+4. Android Studio opens the matching XML layout file.
 
 ### Use the shortcut
 
-Open or focus a layout XML file, then press:
+Open or focus a layout XML file, Java file, or Kotlin file, then press:
 
 ```text
 Command+Ctrl+L
@@ -40,16 +51,17 @@ Command+Ctrl+L
 The default shortcut can be changed in Android Studio:
 
 ```text
-Settings/Preferences -> Keymap -> search "Jump to Layout Owner Class"
+Settings/Preferences -> Keymap -> search "Jump Between Layout and Owner"
 ```
 
-## How It Finds the Owner Class
+## How It Finds Targets
 
 The plugin combines IntelliJ Platform indexes with Android-specific fallback checks:
 
 1. It first asks IntelliJ's reference index for usages of the current XML resource.
 2. If no direct reference is found, it searches indexed project text for common Android layout references.
 3. It filters out XML files and opens the surrounding Java/Kotlin class or source file.
+4. When running from a Java/Kotlin class, it extracts layout names from `R.layout.xxx`, `@layout/xxx`, and `XxxBinding`, then opens the matching `res/layout*/xxx.xml` file.
 
 This makes it useful for Activity, Fragment, Adapter, custom View, ViewBinding, and DataBinding workflows.
 
@@ -74,7 +86,7 @@ This makes it useful for Activity, Fragment, Adapter, custom View, ViewBinding, 
 5. Select:
 
    ```text
-   build/distributions/android-xml-jump-0.1.0.zip
+   build/distributions/android-xml-jump-0.1.2.zip
    ```
 
 6. Restart Android Studio.
@@ -131,7 +143,7 @@ For the first release, JetBrains Marketplace requires a manual upload from the M
 4. Upload:
 
    ```text
-   build/distributions/android-xml-jump-0.1.0.zip
+   build/distributions/android-xml-jump-0.1.2.zip
    ```
 
 5. Set the repository URL:

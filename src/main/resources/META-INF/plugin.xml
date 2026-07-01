@@ -4,7 +4,7 @@
     <vendor email="itgoyo@example.com">itgoyo</vendor>
 
     <description><![CDATA[
-        Jump from an Android layout XML editor tab to the Java or Kotlin class that references that layout.
+        Jump between Android layout XML files and the Java or Kotlin classes that reference them.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -19,8 +19,8 @@
         <action
             id="AndroidXmlJump.GoToLayoutOwner"
             class="com.itgoyo.androidxmljump.GoToLayoutOwnerAction"
-            text="Jump to Layout Owner Class"
-            description="Open the Java or Kotlin class that references the current Android layout XML">
+            text="Jump Between Layout and Owner"
+            description="Open the class that references the current layout XML, or open the layout XML referenced by the current class">
             <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="meta ctrl L"/>
         </action>

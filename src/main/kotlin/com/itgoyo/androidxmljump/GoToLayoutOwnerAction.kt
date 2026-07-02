@@ -4,9 +4,12 @@ import com.intellij.icons.AllIcons
 import com.intellij.ide.highlighter.XmlFileType
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
@@ -17,6 +20,7 @@ import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.TextEditor
+import com.intellij.openapi.fileEditor.TextEditorWithPreview
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -144,28 +148,30 @@ private data class NavigationTarget(
                 }
             }
             if (xmlCaretOffset != null) {
-                navigateToXmlOffset(project, targetVirtualFile, xmlCaretOffset)
+                openLayoutXmlInSplitView(project, targetVirtualFile, xmlCaretOffset)
                 copyClipboardText(clipboardText)
                 return
             }
         }
 
-        val caretOffset = if (!viewId.isNullOrBlank() && targetFile != null && !isTargetXml) {
+        if (isTargetXml) {
+            openLayoutXmlInSplitView(project, targetVirtualFile, null)
+            copyClipboardText(clipboardText)
+            return
+        }
+
+        val caretOffset = if (!viewId.isNullOrBlank() && targetFile != null) {
             val ownerClass = element as? PsiClass
                 ?: PsiTreeUtil.getParentOfType(element, PsiClass::class.java, false)
             ReadAction.compute<Int?, RuntimeException> {
                 findViewIdCaretOffset(targetFile, viewId, ownerClass)
-            }
-        } else if (!viewId.isNullOrBlank() && targetFile != null && isTargetXml) {
-            ReadAction.compute<Int?, RuntimeException> {
-                findViewIdOffsetInXml(targetFile.text, viewId)
             }
         } else {
             null
         }
 
         if (caretOffset != null) {
-            openFileAtOffset(project, targetVirtualFile, caretOffset, isTargetXml)
+            openFileAtOffset(project, targetVirtualFile, caretOffset)
         } else {
             (element as? Navigatable)?.navigate(true)
         }
@@ -175,24 +181,69 @@ private data class NavigationTarget(
 }
 
 /**
- * Opens a layout XML and lands the caret on a pre-computed offset inside android:id.
- * Uses retry because Android Studio attaches the text editor asynchronously.
+ * Opens a layout XML in Split (Code + Design) mode and positions the caret.
+ * Retries because Android Studio loads the Design editor first on first open.
  */
-private fun navigateToXmlOffset(project: Project, virtualFile: VirtualFile, caretOffset: Int) {
+private fun openLayoutXmlInSplitView(
+    project: Project,
+    virtualFile: VirtualFile,
+    caretOffset: Int?
+) {
     ApplicationManager.getApplication().invokeLater({
         FileEditorManager.getInstance(project).openFile(virtualFile, true)
-        OpenFileDescriptor(project, virtualFile, caretOffset).navigate(true)
-        applyCaretWithRetry(project, virtualFile, caretOffset, scrollCenter = true) {
-            trySwitchToSplitView(project, virtualFile, caretOffset)
+        ensureSplitViewWithCaret(project, virtualFile, caretOffset, attemptsLeft = 25)
+    }, ModalityState.defaultModalityState())
+}
+
+private fun ensureSplitViewWithCaret(
+    project: Project,
+    virtualFile: VirtualFile,
+    caretOffset: Int?,
+    attemptsLeft: Int
+) {
+    if (attemptsLeft <= 0) return
+
+    ApplicationManager.getApplication().invokeLater({
+        val fem = FileEditorManager.getInstance(project)
+        val editors = fem.getEditors(virtualFile)
+
+        if (editors.isEmpty()) {
+            ensureSplitViewWithCaret(project, virtualFile, caretOffset, attemptsLeft - 1)
+            return@invokeLater
         }
+
+        var splitApplied = false
+        for (fileEditor in editors) {
+            if (switchToSplitMode(project, virtualFile, fileEditor)) {
+                splitApplied = true
+            }
+        }
+        if (!splitApplied) {
+            splitApplied = triggerSplitModeActions(project, virtualFile, editors.firstOrNull())
+        }
+
+        val inSplit = isInSplitMode(editors)
+        val textEditor = findTextEditorForVirtualFile(project, virtualFile)
+
+        if (caretOffset != null && textEditor != null) {
+            val safeOffset = caretOffset.coerceIn(0, textEditor.document.textLength)
+            textEditor.caretModel.moveToOffset(safeOffset)
+            textEditor.scrollingModel.scrollToCaret(ScrollType.CENTER)
+            textEditor.contentComponent.requestFocusInWindow()
+        }
+
+        if ((inSplit || splitApplied) && (caretOffset == null || textEditor != null)) {
+            return@invokeLater
+        }
+
+        ensureSplitViewWithCaret(project, virtualFile, caretOffset, attemptsLeft - 1)
     }, ModalityState.defaultModalityState())
 }
 
 private fun openFileAtOffset(
     project: Project,
     virtualFile: VirtualFile,
-    offset: Int,
-    isTargetXml: Boolean
+    offset: Int
 ) {
     ApplicationManager.getApplication().invokeLater({
         val descriptor = OpenFileDescriptor(project, virtualFile, offset)
@@ -201,14 +252,9 @@ private fun openFileAtOffset(
         if (textEditor != null) {
             textEditor.caretModel.moveToOffset(offset.coerceIn(0, textEditor.document.textLength))
             textEditor.scrollingModel.scrollToCaret(ScrollType.CENTER)
-            if (isTargetXml) {
-                trySwitchToSplitView(project, virtualFile, offset)
-            }
         } else {
             descriptor.navigate(true)
-            applyCaretWithRetry(project, virtualFile, offset, scrollCenter = true) {
-                if (isTargetXml) trySwitchToSplitView(project, virtualFile, offset)
-            }
+            applyCaretWithRetry(project, virtualFile, offset, scrollCenter = true)
         }
     }, ModalityState.defaultModalityState())
 }
@@ -281,35 +327,115 @@ private fun extractEditor(fileEditor: FileEditor): Editor? {
     return null
 }
 
-private fun trySwitchToSplitView(project: Project, virtualFile: VirtualFile, caretOffset: Int) {
-    ApplicationManager.getApplication().invokeLater({
-        try {
-            FileEditorManager.getInstance(project).getEditors(virtualFile).forEach { fe ->
-                if (tryInvokeShowEditorAndPreview(fe)) {
-                    // Split mode can reset caret; restore it after switching
-                    applyCaretWithRetry(project, virtualFile, caretOffset, scrollCenter = true)
-                    return@invokeLater
-                }
-            }
-        } catch (_: Throwable) {
-            // best effort
+private fun switchToSplitMode(project: Project, virtualFile: VirtualFile, fileEditor: FileEditor): Boolean {
+    if (fileEditor is TextEditorWithPreview) {
+        fileEditor.setLayout(TextEditorWithPreview.Layout.SHOW_EDITOR_AND_PREVIEW)
+        return true
+    }
+
+    for (nested in collectNestedFileEditors(fileEditor)) {
+        if (nested is TextEditorWithPreview) {
+            nested.setLayout(TextEditorWithPreview.Layout.SHOW_EDITOR_AND_PREVIEW)
+            return true
         }
-    }, ModalityState.defaultModalityState())
+    }
+
+    if (invokeSetLayoutReflection(fileEditor)) return true
+    if (invokeSplitEditorModeReflection(fileEditor)) return true
+    if (invokeNoArgMethod(fileEditor, "showEditorAndPreview")) return true
+
+    return triggerSplitModeActions(project, virtualFile, fileEditor)
 }
 
-private fun tryInvokeShowEditorAndPreview(target: Any): Boolean {
-    for (className in listOf(
-        null,
-        "com.intellij.openapi.fileEditor.TextEditorWithPreview",
-        "com.android.tools.idea.common.editor.SplitEditor"
-    )) {
+private fun collectNestedFileEditors(fileEditor: FileEditor): List<FileEditor> {
+    val nested = mutableListOf<FileEditor>()
+    for (methodName in listOf("getEditor", "getTextEditor", "getMainEditor", "getDesignEditor")) {
         try {
-            val cls = className?.let { Class.forName(it) } ?: target.javaClass
-            if (className != null && !cls.isInstance(target)) continue
-            cls.getMethod("showEditorAndPreview").invoke(target)
-            return true
+            val method = fileEditor.javaClass.methods.firstOrNull {
+                it.name == methodName && it.parameterCount == 0
+            } ?: continue
+            when (val result = method.invoke(fileEditor)) {
+                is FileEditor -> nested.add(result)
+                is TextEditor -> { /* handled via extractEditor */ }
+            }
         } catch (_: Throwable) {
-            // try next
+            // try next method
+        }
+    }
+    return nested
+}
+
+private fun invokeSetLayoutReflection(fileEditor: FileEditor): Boolean = try {
+    val layoutClass = Class.forName("com.intellij.openapi.fileEditor.TextEditorWithPreview\$Layout")
+    val splitLayout = layoutClass.enumConstants?.firstOrNull { constant ->
+        constant.toString().contains("EDITOR_AND_PREVIEW", ignoreCase = true)
+    } ?: return false
+    fileEditor.javaClass.getMethod("setLayout", layoutClass).invoke(fileEditor, splitLayout)
+    true
+} catch (_: Throwable) {
+    false
+}
+
+private fun invokeSplitEditorModeReflection(fileEditor: FileEditor): Boolean = try {
+    val modeClass = Class.forName("com.android.tools.idea.common.editor.SplitEditor\$Mode")
+    val splitMode = modeClass.enumConstants?.firstOrNull { it.toString() == "SPLIT" } ?: return false
+    fileEditor.javaClass.getMethod("setMode", modeClass).invoke(fileEditor, splitMode)
+    true
+} catch (_: Throwable) {
+    false
+}
+
+private fun invokeNoArgMethod(target: Any, methodName: String): Boolean = try {
+    target.javaClass.getMethod(methodName).invoke(target)
+    true
+} catch (_: Throwable) {
+    false
+}
+
+private fun triggerSplitModeActions(
+    project: Project,
+    virtualFile: VirtualFile,
+    @Suppress("UNUSED_PARAMETER") fileEditor: FileEditor?
+): Boolean {
+    val dataContext = SimpleDataContext.builder()
+        .add(CommonDataKeys.PROJECT, project)
+        .add(CommonDataKeys.VIRTUAL_FILE, virtualFile)
+        .build()
+
+    val actionIds = listOf(
+        "TextEditorWithPreview.Layout.EditorAndPreview",
+        "Android.Designer.SplitMode",
+        "SwitchModeAction.SPLIT",
+        "LayoutEditorSplitMode"
+    )
+
+    for (actionId in actionIds) {
+        val action = ActionManager.getInstance().getAction(actionId) ?: continue
+        val event = AnActionEvent.createFromDataContext(actionId, null, dataContext)
+        action.actionPerformed(event)
+        return true
+    }
+    return false
+}
+
+private fun isInSplitMode(editors: Array<FileEditor>): Boolean {
+    for (fileEditor in editors) {
+        if (fileEditor is TextEditorWithPreview) {
+            if (fileEditor.getLayout() == TextEditorWithPreview.Layout.SHOW_EDITOR_AND_PREVIEW) {
+                return true
+            }
+        }
+        try {
+            val layout = fileEditor.javaClass.getMethod("getLayout").invoke(fileEditor)?.toString().orEmpty()
+            if (layout.contains("EDITOR_AND_PREVIEW", ignoreCase = true)) return true
+        } catch (_: Throwable) {
+            // not a layout-capable editor
+        }
+        try {
+            val mode = fileEditor.javaClass.getMethod("getMode").invoke(fileEditor)?.toString().orEmpty()
+            if (mode == "SPLIT") return true
+        } catch (_: Throwable) {
+            // not a SplitEditor
         }
     }
     return false

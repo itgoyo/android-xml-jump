@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.itgoyo"
-version = "0.1.5"
+version = "0.1.6"
 
 kotlin {
     jvmToolchain(21)
@@ -44,10 +44,9 @@ intellijPlatform {
 
         changeNotes = """
             <ul>
-              <li>Fix XML caret: navigate via PSI XmlTag (works with Android layout editor).</li>
-              <li>Retry caret placement and scroll-to-center after editor opens asynchronously.</li>
-              <li>Restore caret after switching to Split (Code + Design) view.</li>
-              <li>Improve view-id extraction from binding.guideIV and R.id.xxx.</li>
+              <li>Auto-open layout XML in Split (Code + Design) view on first open.</li>
+              <li>Use TextEditorWithPreview.setLayout and retry until Split mode is active.</li>
+              <li>Keep caret centered on the target android:id after Split switch.</li>
             </ul>
         """.trimIndent()
     }
